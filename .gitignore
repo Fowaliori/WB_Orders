@@ -1,0 +1,12 @@
+# Go
+bin/
+pkg/
+*.exe
+*.test
+
+# VS Code
+.vscode/
+
+# Другие игнорируемые файлы
+.env
+*.log
