@@ -11,7 +11,6 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// Order соответствует вашей модели данных.
 type Order struct {
 	OrderUID          string   `json:"order_uid"`
 	TrackNumber       string   `json:"track_number"`
@@ -67,7 +66,7 @@ type Item struct {
 }
 
 func main() {
-	// Настройки Kafka
+
 	topic := "orders"
 	broker := "localhost:9092"
 
@@ -100,7 +99,7 @@ func main() {
 			fmt.Printf("Sent order: %s\n", order.OrderUID)
 		}
 
-		time.Sleep(3 * time.Second) // Увеличил интервал для наглядности
+		time.Sleep(3 * time.Second)
 	}
 }
 

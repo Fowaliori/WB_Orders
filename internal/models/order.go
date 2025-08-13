@@ -15,7 +15,7 @@ type Order struct {
 	DeliveryService   string    `json:"delivery_service" db:"delivery_service"`
 	ShardKey          string    `json:"shardkey" db:"shardkey"`
 	SMID              int       `json:"sm_id" db:"sm_id"`
-	DateCreated       time.Time `json:"date_created" db:"date_created"` // Можно использовать time.Time, если нужно парсить
+	DateCreated       time.Time `json:"date_created" db:"date_created"`
 	OOFShard          string    `json:"oof_shard" db:"oof_shard"`
 }
 
