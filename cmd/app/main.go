@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"l0/internal/api"
 	"l0/internal/cache"
@@ -27,8 +29,12 @@ func main() {
 
 	// Инициализация кэша
 	cache := cache.NewCache()
+
+	// Восстановление кэша из БД
 	if err := restoreCacheFromDB(ctx, pg, cache); err != nil {
 		log.Printf("Failed to restore cache from DB: %v", err)
+	} else {
+		log.Printf("Cache restored successfully. Total orders in cache: %d", len(cache.GetAll()))
 	}
 
 	// Запуск Kafka-консьюмера
@@ -45,7 +51,7 @@ func main() {
 	}()
 
 	// Настройка HTTP-сервера
-	handler := api.NewHandler(cache)
+	handler := api.NewHandler(cache, pg)
 	server := &http.Server{
 		Addr:    ":8082",
 		Handler: handler,
@@ -71,6 +77,42 @@ func main() {
 }
 
 func restoreCacheFromDB(ctx context.Context, pg *db.Postgres, cache *cache.Cache) error {
-	// Здесь реализация восстановления кэша из БД
+	start := time.Now()
+
+	// Получаем 30 последних order_uid из таблицы orders
+	rows, err := pg.GetPool().Query(ctx, `
+        SELECT order_uid 
+        FROM orders 
+        ORDER BY date_created DESC 
+        LIMIT 30`)
+	if err != nil {
+		return fmt.Errorf("failed to query orders: %v", err)
+	}
+	defer rows.Close()
+
+	var orderUIDs []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return fmt.Errorf("failed to scan order_uid: %v", err)
+		}
+		orderUIDs = append(orderUIDs, uid)
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("rows error: %v", err)
+	}
+
+	// Для каждого order_uid загружаем полный заказ
+	for _, uid := range orderUIDs {
+		order, err := pg.GetOrder(ctx, uid)
+		if err != nil {
+			log.Printf("Failed to load order %s: %v", uid, err)
+			continue
+		}
+		cache.Set(uid, *order)
+	}
+
+	log.Printf("Cache restoration completed. Loaded %d recent orders in %v", len(orderUIDs), time.Since(start))
 	return nil
 }

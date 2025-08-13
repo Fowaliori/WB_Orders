@@ -28,3 +28,16 @@ func (c *Cache) Get(uid string) (models.Order, bool) {
 	order, exists := c.orders[uid]
 	return order, exists
 }
+
+// GetAll возвращает все заказы в кэше (для проверки)
+func (c *Cache) GetAll() map[string]models.Order {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Создаем копию map
+	result := make(map[string]models.Order, len(c.orders))
+	for k, v := range c.orders {
+		result[k] = v
+	}
+	return result
+}

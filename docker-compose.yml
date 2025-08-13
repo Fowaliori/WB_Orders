@@ -1,9 +1,7 @@
-
 services:
   kafka:
-    container_name: order-service-wb-kafka
     image: confluentinc/cp-kafka:7.7.1.amd64
-    restart: always
+    container_name: kafka
     ports:
       - "9092:9092"
     environment:
@@ -20,29 +18,19 @@ services:
       KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
       CLUSTER_ID: 'FzQ9ZTNmODY1OWE0RGAmMD'
     volumes:
-      - ./kafka-data:/var/lib/kafka/data
+      - kafka_data:/var/lib/kafka/data
     healthcheck:
       test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:29092" ]
       interval: 10s
       timeout: 10s
       retries: 10
 
-  kafka-ui:
-    container_name: order-service-wb-kafka-ui
-    image: provectuslabs/kafka-ui:latest
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      DYNAMIC_CONFIG_ENABLED: "true"
-
   postgres:
     image: postgres:16
     container_name: postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
+      POSTGRES_USER: user_wb
       POSTGRES_PASSWORD: 123
       POSTGRES_DB: level0
     ports:
@@ -50,7 +38,17 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      - kafka
 
 volumes:
   kafka_data:

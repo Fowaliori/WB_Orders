@@ -3,53 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Service</title>
+    <title>Order Viewer</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            line-height: 1.6;
         }
-        .container {
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .search-container {
             display: flex;
-            flex-direction: column;
-            gap: 20px;
+            margin-bottom: 20px;
         }
-        .search-box {
-            display: flex;
-            gap: 10px;
-        }
-        input, button {
-            padding: 8px;
+        #orderUid {
+            flex-grow: 1;
+            padding: 10px;
             font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
         }
         button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 0 4px 4px 0;
             cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
         }
         #result {
-            border: 1px solid #ddd;
+            margin-top: 20px;
             padding: 15px;
-            border-radius: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
             background-color: #f9f9f9;
             white-space: pre-wrap;
+            min-height: 200px;
         }
-        .order-count {
-            font-size: 14px;
-            color: #666;
+        .error {
+            color: #d9534f;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Order Service</h1>
-        <div class="search-box">
-            <input type="text" id="orderId" placeholder="Enter Order ID">
-            <button onclick="getOrder()">Get Order</button>
-        </div>
-        <div class="order-count">Orders in cache: <span id="orderCount">0</span></div>
-        <div id="result"></div>
+    <h1>Order Information Viewer</h1>
+    
+    <div class="search-container">
+        <input type="text" id="orderUid" placeholder="Enter Order UID (e.g., test-order-1234)" />
+        <button onclick="getOrder()">Get Order</button>
     </div>
-    <script src="script.js"></script>
+    
+    <div id="result">Order data will appear here...</div>
+
+    <script>
+        function getOrder() {
+            const orderUid = document.getElementById('orderUid').value.trim();
+            const resultDiv = document.getElementById('result');
+            
+            if (!orderUid) {
+                resultDiv.innerHTML = '<span class="error">Please enter an Order UID</span>';
+                return;
+            }
+
+            resultDiv.textContent = 'Loading...';
+            
+            fetch(`/order?uid=${encodeURIComponent(orderUid)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.error || 'Failed to fetch order');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    resultDiv.textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+                });
+        }
+
+        // Allow pressing Enter to submit
+        document.getElementById('orderUid').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getOrder();
+            }
+        });
+    </script>
 </body>
 </html>

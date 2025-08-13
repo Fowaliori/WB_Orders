@@ -14,6 +14,10 @@ type Postgres struct {
 	pool *pgxpool.Pool
 }
 
+func (p *Postgres) GetPool() *pgxpool.Pool {
+	return p.pool
+}
+
 // NewPostgres создает новое подключение к PostgreSQL.
 func NewPostgres(ctx context.Context, connString string) (*Postgres, error) {
 	pool, err := pgxpool.New(ctx, connString)
@@ -104,10 +108,10 @@ func (p *Postgres) GetOrder(ctx context.Context, orderUID string) (*models.Order
 
 	// Основные данные заказа
 	err := p.pool.QueryRow(ctx, `
-		SELECT 
-			order_uid, track_number, entry, locale, internal_signature,
-			customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard
-		FROM orders WHERE order_uid = $1`, orderUID).
+        SELECT 
+            order_uid, track_number, entry, locale, internal_signature,
+            customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard
+        FROM orders WHERE order_uid = $1`, orderUID).
 		Scan(
 			&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature,
 			&order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SMID, &order.DateCreated, &order.OOFShard,
