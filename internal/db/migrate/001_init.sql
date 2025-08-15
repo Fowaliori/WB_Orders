@@ -1,0 +1,27 @@
+-- +goose Up
+-- +goose StatementBegin
+DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'user_wb') THEN
+            CREATE ROLE user_wb WITH LOGIN PASSWORD '123';
+        END IF;
+    END
+$$;
+
+GRANT CONNECT ON DATABASE level0 TO user_wb;
+GRANT ALL PRIVILEGES ON SCHEMA public TO user_wb;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO user_wb;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO user_wb;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO user_wb;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO user_wb
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM user_wb;
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM user_wb;
+REVOKE USAGE ON SCHEMA public FROM user_wb;
+REVOKE CONNECT ON DATABASE level0 FROM user_wb;
+
+DROP ROLE IF EXISTS user_wb;
+-- +goose StatementEnd
