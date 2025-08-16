@@ -137,7 +137,7 @@ func generateOrder() Order {
 				Price:       rand.Intn(1000),
 				RID:         fmt.Sprintf("rid-%d", rand.Intn(1000)),
 				Name:        "Test Item",
-				Sale:        30,
+				Sale:        0,
 				Size:        "0",
 				TotalPrice:  rand.Intn(500),
 				NMID:        rand.Intn(1000000),
