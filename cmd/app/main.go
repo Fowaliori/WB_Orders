@@ -4,17 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"l0/internal/api"
+	"l0/internal/cache"
+	"l0/internal/db"
+	"l0/internal/kafka"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	"l0/internal/api"
-	"l0/internal/cache"
-	"l0/internal/db"
-	"l0/internal/kafka"
 )
 
 func main() {
