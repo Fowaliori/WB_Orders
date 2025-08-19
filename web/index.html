@@ -5,40 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Viewer</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-        .search-container {
-            display: flex;
-            margin-bottom: 20px;
-        }
-        #orderUid {
-            flex-grow: 1;
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 4px 0 0 4px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 0 4px 4px 0;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
         #result {
             margin-top: 20px;
             padding: 15px;
@@ -56,7 +22,7 @@
 <body>
     <h1>Order Information Viewer</h1>
     
-    <div class="search-container">
+    <div>
         <input type="text" id="orderUid" />
         <button onclick="getOrder()">Get Order</button>
     </div>
@@ -69,7 +35,7 @@
             const resultDiv = document.getElementById('result');
             
             if (!orderUid) {
-                resultDiv.innerHTML = '<span class="error">Please enter an Order UID</span>';
+                resultDiv.innerHTML = '<span>Please enter an Order UID</span>';
                 return;
             }
 
@@ -88,7 +54,7 @@
                     resultDiv.textContent = JSON.stringify(data, null, 2);
                 })
                 .catch(error => {
-                    resultDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+                    resultDiv.innerHTML = `<span>Error: ${error.message}</span>`;
                 });
         }
 

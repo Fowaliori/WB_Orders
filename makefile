@@ -1,5 +1,5 @@
 .PHONY: init-db start stop clean run generator
-	
+
 
 # Инициализация БД
 init-db:
