@@ -3,6 +3,7 @@
 
 # Инициализация БД
 init-db:
+	psql -U postgres -h localhost -c "CREATE DATABASE level0;" postgres
 	goose -dir internal/db/migrate postgres "postgres://postgres:123@localhost:5432/level0?sslmode=disable" up
 
 # Запуск всех сервисов
