@@ -77,8 +77,6 @@ func main() {
 	})
 	defer writer.Close()
 
-	rand.Seed(time.Now().UnixNano())
-
 	for {
 		order := generateOrder()
 		message, err := json.Marshal(order)
