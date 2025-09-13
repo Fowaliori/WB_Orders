@@ -4,57 +4,54 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"l0/internal/api"
-	"l0/internal/cache"
-	"l0/internal/db"
-	"l0/internal/kafka"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"l0/internal/api"
+	"l0/internal/cache"
+	"l0/internal/db"
+	"l0/internal/kafka"
+	"l0/internal/models"
 )
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Подключение к PostgreSQL
-	pg, err := db.NewPostgres(ctx, "postgres://user_wb:123@localhost:5432/level0?sslmode=disable")
+	dbService, err := db.NewPostgres(ctx, "postgres://user_wb:123@localhost:5433/level0?sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer pg.Close()
+	defer dbService.Close()
 
-	// Инициализация кэша
-	cache := cache.NewCache()
+	cacheService := cache.NewCache()
 
-	// Восстановление кэша из БД
-	if err := restoreCacheFromDB(ctx, pg, cache); err != nil {
+	if err := restoreCacheFromDB(ctx, dbService, cacheService); err != nil {
 		log.Printf("Failed to restore cache from DB: %v", err)
 	} else {
-		log.Printf("Cache restored successfully. Total orders in cache: %d", len(cache.GetAll()))
+		log.Printf("Cache restored successfully. Total orders in cache: %d", len(cacheService.GetAll()))
 	}
 
-	// Запуск Kafka-консьюмера
 	go func() {
 		if err := kafka.StartConsumer(
 			ctx,
 			[]string{"localhost:9092"},
 			"orders",
-			pg,
-			cache,
+			dbService,
+			cacheService,
 		); err != nil {
 			log.Fatalf("Kafka consumer failed: %v", err)
 		}
 	}()
 
-	// Настройка HTTP-сервера
-	handler := api.NewHandler(cache, pg)
+	apiHandler := api.NewHandler(cacheService, dbService)
 	server := &http.Server{
 		Addr:    ":8082",
-		Handler: handler,
+		Handler: apiHandler,
 	}
 
 	go func() {
@@ -75,43 +72,72 @@ func main() {
 	}
 }
 
-func restoreCacheFromDB(ctx context.Context, pg *db.Postgres, cache *cache.Cache) error {
+func restoreCacheFromDB(ctx context.Context, pg db.Database, cacheService cache.Cache) error {
 	start := time.Now()
 
-	// Получаем 30 последних order_uid из таблицы orders
-	rows, err := pg.GetPool().Query(ctx, `
-        SELECT order_uid 
-        FROM orders 
-        ORDER BY date_created DESC 
-        LIMIT 30`)
+	pool := pg.GetPool()
+
+	rows, err := pool.Query(ctx, `
+		SELECT 
+			o.order_uid, o.track_number, o.entry, o.locale, o.internal_signature,
+			o.customer_id, o.delivery_service, o.shardkey, o.sm_id, o.date_created, o.oof_shard,
+			d.name, d.phone, d.zip, d.city, d.address, d.region, d.email,
+			p.transaction, p.request_id, p.currency, p.provider, p.amount, p.payment_dt,
+			p.bank, p.delivery_cost, p.goods_total, p.custom_fee,
+			i.chrt_id, i.track_number, i.price, i.rid, i.name,
+			i.sale, i.size, i.total_price, i.nm_id, i.brand, i.status
+		FROM orders o
+		LEFT JOIN delivery d ON o.order_uid = d.order_uid
+		LEFT JOIN payment p ON o.order_uid = p.order_uid
+		LEFT JOIN items i ON o.order_uid = i.order_uid
+		ORDER BY o.date_created DESC
+		LIMIT 30`)
 	if err != nil {
-		return fmt.Errorf("failed to query orders: %v", err)
+		return fmt.Errorf("failed to query orders with joins: %v", err)
 	}
 	defer rows.Close()
 
-	var orderUIDs []string
+	ordersMap := make(map[string]*models.Order)
+
 	for rows.Next() {
-		var uid string
-		if err := rows.Scan(&uid); err != nil {
-			return fmt.Errorf("failed to scan order_uid: %v", err)
+		var (
+			o models.Order
+			d models.Delivery
+			p models.Payment
+			i models.Item
+		)
+
+		err := rows.Scan(
+			&o.OrderUID, &o.TrackNumber, &o.Entry, &o.Locale, &o.InternalSignature,
+			&o.CustomerID, &o.DeliveryService, &o.ShardKey, &o.SMID, &o.DateCreated, &o.OOFShard,
+			&d.Name, &d.Phone, &d.Zip, &d.City, &d.Address, &d.Region, &d.Email,
+			&p.Transaction, &p.RequestID, &p.Currency, &p.Provider, &p.Amount, &p.PaymentDT,
+			&p.Bank, &p.DeliveryCost, &p.GoodsTotal, &p.CustomFee,
+			&i.ChrtID, &i.TrackNumber, &i.Price, &i.RID, &i.Name,
+			&i.Sale, &i.Size, &i.TotalPrice, &i.NMID, &i.Brand, &i.Status,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to scan row: %v", err)
 		}
-		orderUIDs = append(orderUIDs, uid)
+
+		if existing, ok := ordersMap[o.OrderUID]; ok {
+			existing.Items = append(existing.Items, i)
+		} else {
+			o.Delivery = d
+			o.Payment = p
+			o.Items = []models.Item{i}
+			ordersMap[o.OrderUID] = &o
+		}
 	}
 
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("rows error: %v", err)
 	}
 
-	// Для каждого order_uid загружаем полный заказ
-	for _, uid := range orderUIDs {
-		order, err := pg.GetOrder(ctx, uid)
-		if err != nil {
-			log.Printf("Failed to load order %s: %v", uid, err)
-			continue
-		}
-		cache.Set(uid, *order)
+	for uid, order := range ordersMap {
+		cacheService.Set(uid, *order)
 	}
 
-	log.Printf("Cache restoration completed. Loaded %d recent orders in %v", len(orderUIDs), time.Since(start))
+	log.Printf("Cache restoration completed. Loaded %d recent orders in %v", len(ordersMap), time.Since(start))
 	return nil
 }

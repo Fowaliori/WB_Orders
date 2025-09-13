@@ -7,25 +7,27 @@ import (
 
 	"l0/internal/models"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type Database interface {
+	SaveOrder(ctx context.Context, order models.Order) error
+	GetOrder(ctx context.Context, orderUID string) (*models.Order, error)
+	Close()
+	GetPool() *pgxpool.Pool
+}
 
 type Postgres struct {
 	pool *pgxpool.Pool
 }
 
-func (p *Postgres) GetPool() *pgxpool.Pool {
-	return p.pool
-}
-
-// NewPostgres создает новое подключение к PostgreSQL.
-func NewPostgres(ctx context.Context, connString string) (*Postgres, error) {
+func NewPostgres(ctx context.Context, connString string) (Database, error) {
 	pool, err := pgxpool.New(ctx, connString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to PostgreSQL: %v", err)
 	}
 
-	// Проверяем подключение
 	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("postgres ping failed: %v", err)
 	}
@@ -40,9 +42,12 @@ func (p *Postgres) SaveOrder(ctx context.Context, order models.Order) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %v", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && err != pgx.ErrTxClosed {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
 
-	// Сохраняем в таблицу orders
 	_, err = tx.Exec(ctx, `
 		INSERT INTO orders (
 			order_uid, track_number, entry, locale, internal_signature,
@@ -56,7 +61,6 @@ func (p *Postgres) SaveOrder(ctx context.Context, order models.Order) error {
 		return fmt.Errorf("failed to insert into orders: %v", err)
 	}
 
-	// Сохраняем delivery
 	_, err = tx.Exec(ctx, `
 		INSERT INTO delivery (
 			order_uid, name, phone, zip, city, address, region, email
@@ -69,7 +73,6 @@ func (p *Postgres) SaveOrder(ctx context.Context, order models.Order) error {
 		return fmt.Errorf("failed to insert into delivery: %v", err)
 	}
 
-	// Сохраняем payment
 	_, err = tx.Exec(ctx, `
 		INSERT INTO payment (
 			order_uid, transaction, request_id, currency, provider,
@@ -84,7 +87,6 @@ func (p *Postgres) SaveOrder(ctx context.Context, order models.Order) error {
 		return fmt.Errorf("failed to insert into payment: %v", err)
 	}
 
-	// Сохраняем items
 	for _, item := range order.Items {
 		_, err = tx.Exec(ctx, `
 			INSERT INTO items (
@@ -173,7 +175,10 @@ func (p *Postgres) GetOrder(ctx context.Context, orderUID string) (*models.Order
 	return &order, nil
 }
 
-// Close закрывает подключение к БД.
 func (p *Postgres) Close() {
 	p.pool.Close()
+}
+
+func (p *Postgres) GetPool() *pgxpool.Pool {
+	return p.pool
 }

@@ -10,14 +10,14 @@ import (
 )
 
 type Handler struct {
-	cache *cache.Cache
-	db    *db.Postgres
+	cacheService cache.Cache
+	db           db.Database
 }
 
-func NewHandler(cache *cache.Cache, db *db.Postgres) http.Handler {
+func NewHandler(cache cache.Cache, db db.Database) http.Handler {
 	return &Handler{
-		cache: cache,
-		db:    db,
+		cacheService: cache,
+		db:           db,
 	}
 }
 
@@ -41,7 +41,7 @@ func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Сначала проверяем кэш
-	if order, exists := h.cache.Get(uid); exists {
+	if order, exists := h.cacheService.Get(uid); exists {
 		if err := json.NewEncoder(w).Encode(order); err != nil {
 			http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
 		}
@@ -57,10 +57,13 @@ func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Добавляем найденный заказ в кэш
-	h.cache.Set(uid, *order)
+	h.cacheService.Set(uid, *order)
 
 	// 4. Возвращаем результат
 	if err := json.NewEncoder(w).Encode(order); err != nil {
+		log.Printf("Failed to encode order %s: %v", uid, err)
 		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
+		return
 	}
+
 }

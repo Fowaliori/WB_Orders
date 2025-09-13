@@ -3,8 +3,8 @@
 
 # Инициализация БД
 init-db:
-	psql -U postgres -h localhost -c "CREATE DATABASE level0;" postgres
-	goose -dir internal/db/migrate postgres "postgres://postgres:123@localhost:5432/level0?sslmode=disable" up
+	psql -U postgres -h localhost -p 5433 -c "CREATE DATABASE level0;" postgres
+	goose -dir internal/db/migrate postgres "postgres://postgres:123@localhost:5433/level0?sslmode=disable" up
 
 # Запуск всех сервисов
 start:
@@ -12,7 +12,7 @@ start:
 
 # Остановка всех сервисов
 stop:
-	docker-compose down
+	docker-compose stop
 
 # Очистка 
 clean:

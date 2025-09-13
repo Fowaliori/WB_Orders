@@ -1,43 +1,77 @@
 package cache
 
 import (
-	"l0/internal/models"
+	"hash/fnv"
 	"sync"
+
+	"l0/internal/models"
 )
 
-type Cache struct {
+type Cache interface {
+	Set(uid string, order models.Order)
+	Get(uid string) (models.Order, bool)
+	GetAll() map[string]models.Order
+	Remove(uid string)
+}
+
+type shard struct {
 	mu     sync.RWMutex
 	orders map[string]models.Order
 }
 
-func NewCache() *Cache {
-	return &Cache{
-		orders: make(map[string]models.Order),
+type ShardedCache struct {
+	shards []shard
+}
+
+const numShards = 32
+
+func NewCache() Cache {
+	shards := make([]shard, numShards)
+	for i := range shards {
+		shards[i].orders = make(map[string]models.Order)
 	}
+	return &ShardedCache{shards: shards}
 }
 
-func (c *Cache) Set(uid string, order models.Order) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.orders[uid] = order
+func (c *ShardedCache) getShard(uid string) *shard {
+	h := fnv.New32a()
+	h.Write([]byte(uid))
+	return &c.shards[h.Sum32()%uint32(numShards)]
 }
 
-func (c *Cache) Get(uid string) (models.Order, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	order, exists := c.orders[uid]
-	return order, exists
+func (c *ShardedCache) Set(uid string, order models.Order) {
+	s := c.getShard(uid)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.orders[uid] = order
 }
 
-// GetAll возвращает все заказы в кэше (для проверки)
-func (c *Cache) GetAll() map[string]models.Order {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *ShardedCache) Get(uid string) (models.Order, bool) {
+	s := c.getShard(uid)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	order, ok := s.orders[uid]
+	return order, ok
+}
 
-	// Создаем копию map
-	result := make(map[string]models.Order, len(c.orders))
-	for k, v := range c.orders {
-		result[k] = v
+func (c *ShardedCache) Remove(uid string) {
+	s := c.getShard(uid)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.orders, uid)
+}
+
+func (c *ShardedCache) GetAll() map[string]models.Order {
+	result := make(map[string]models.Order)
+
+	for i := range c.shards {
+		s := &c.shards[i]
+		s.mu.RLock()
+		for k, v := range s.orders {
+			result[k] = v
+		}
+		s.mu.RUnlock()
 	}
+
 	return result
 }
